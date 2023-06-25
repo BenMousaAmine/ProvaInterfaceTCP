@@ -14,7 +14,7 @@ import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 
-public class HandleFrameRequest {
+public class HandleFrameRequest implements Runnable {
     Socket clientSocket;
     private PrintWriter out;
     private BufferedReader in;
@@ -23,95 +23,70 @@ public class HandleFrameRequest {
         this.clientSocket = clientSocket;
     }
 
-
-    public void setupStreams() {
-        try {
-            out = new PrintWriter(clientSocket.getOutputStream(), true);
-            in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void closeStreams() {
-        try {
-            in.close();
-            out.close();
-            clientSocket.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public List<Car> getCarList() {
-        List<Car> carList = new ArrayList<>();
+    @Override
+    public void run() {
         try {
             setupStreams();
 
-            sendRequest("ALL");
-            String response = receiveResponse();
-            carList = fromJsonToList(response);
+            String request = receiveRequest();
+            String response = handleRequest(request);
+            sendResponse(response);
 
             closeStreams();
         } catch (IOException e) {
             e.printStackTrace();
         }
-        return carList;
     }
 
-    public List<Car> MostExpensiveCar() {
-        List<Car> carList = new ArrayList<>();
-        try {
-            setupStreams();
-
-            sendRequest("MORE_EXPENSIVE");
-            String response = receiveResponse();
-            carList = fromJsonToList(response);
-
-            closeStreams();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return carList;
+    private void setupStreams() throws IOException {
+        out = new PrintWriter(clientSocket.getOutputStream(), true);
+        in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
     }
 
-    public List<Car> CarsSortedByName() {
-        List<Car> carList = new ArrayList<>();
-        try {
-            setupStreams();
-
-            sendRequest("ALL_SORTED");
-            String response = receiveResponse();
-            carList = fromJsonToList(response);
-
-            closeStreams();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return carList;
+    private void closeStreams() throws IOException {
+        in.close();
+        out.close();
+        clientSocket.close();
     }
 
-    private void sendRequest(String request) {
-        out.println(request);
+    private String receiveRequest() throws IOException {
+        return in.readLine();
+    }
+
+    private void sendResponse(String response) {
+        out.println(response);
         out.flush();
     }
 
-    private String receiveResponse() throws IOException {
-        StringBuilder jsonData = new StringBuilder();
-        String line;
-        while ((line = in.readLine()) != null) {
-            jsonData.append(line);
+    private String handleRequest(String request) {
+        switch (request) {
+            case "ALL":
+                return handleAllRequest();
+            case "MORE_EXPENSIVE":
+                return handleMoreExpensiveRequest();
+            case "ALL_SORTED":
+                return handleSortedByNameRequest();
+            default:
+                return "Invalid request";
         }
-        return jsonData.toString();
     }
 
-    private List<Car> fromJsonToList(String json) {
-        Gson gson = new Gson();
-        Type listType = new TypeToken<List<Car>>() {}.getType();
-        return gson.fromJson(json, listType);
+    private String handleAllRequest() {
+        List<Car> carList = WareHouse.getInstance().getCarList();
+        return transformToJson(carList);
     }
 
-    public String transformToJson(List<Car> carList) {
+    private String handleMoreExpensiveRequest() {
+        List<Car> carList = WareHouse.getInstance().mostExpensiveCar();
+        return transformToJson(carList);
+    }
+
+    private String handleSortedByNameRequest() {
+        List<Car> carList = WareHouse.getInstance().allSorted();
+        return transformToJson(carList);
+    }
+
+    private String transformToJson(List<Car> carList) {
         Gson gson = new GsonBuilder().setPrettyPrinting().create();
         return gson.toJson(carList);
     }
